@@ -9,6 +9,11 @@ const ProjectListPage: React.FC = () => {
   const [projects, setProjects] = useState<ProjectResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const pageStyle: React.CSSProperties = {
+    minHeight: '100vh',
+    padding: '24px',
+    boxSizing: 'border-box',
+  };
 
   useEffect(() => {
     const fetchProjects = async () => {
@@ -55,21 +60,27 @@ const ProjectListPage: React.FC = () => {
   };
 
   if (loading) {
-    return <Spin size="large" tip="加载中..." style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '500px' }} />;
+    return (
+      <div style={pageStyle}>
+        <Spin size="large" tip="加载中..." style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '500px' }} />
+      </div>
+    );
   }
 
   if (error) {
     return (
-      <Empty
-        description={`加载失败: ${error}`}
-        style={{ marginTop: '50px' }}
-      />
+      <div style={pageStyle}>
+        <Empty
+          description={`加载失败: ${error}`}
+          style={{ marginTop: '50px' }}
+        />
+      </div>
     );
   }
 
   if (projects.length === 0) {
     return (
-      <div>
+      <div style={pageStyle}>
         <h1>项目列表</h1>
         <Empty
           description="暂无项目"
@@ -80,12 +91,14 @@ const ProjectListPage: React.FC = () => {
   }
 
   return (
-    <ProjectList
-      projects={projects}
-      onViewProject={handleViewProject}
-      onCreateProject={handleCreateProject}
-      onRefresh={handleRefresh}
-    />
+    <div style={pageStyle}>
+      <ProjectList
+        projects={projects}
+        onViewProject={handleViewProject}
+        onCreateProject={handleCreateProject}
+        onRefresh={handleRefresh}
+      />
+    </div>
   );
 };
 

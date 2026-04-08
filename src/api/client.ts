@@ -33,4 +33,5 @@ export const apiClient = {
   get: <T>(url: string) => request<T>(url),
   post: <T, U>(url: string, data: U) =>
     request<T>(url, { method: 'POST', body: data as any }),
+  request: <T>(url: string, options: RequestInit) => request<T>(url, options),
 };

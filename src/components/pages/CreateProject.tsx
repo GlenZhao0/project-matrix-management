@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Form, Select, Space } from 'antd';
-import { CreateProjectInput } from '../../api/projects';
+import { CreateProjectInput, ProjectTemplate } from '../../api/projects';
 import Input from '../common/Input';
 import Button from '../common/Button';
 
@@ -8,12 +8,13 @@ interface CreateProjectProps {
   onCreate: (data: CreateProjectInput) => Promise<void>;
   onCancel: () => void;
   loading?: boolean;
+  templates?: ProjectTemplate[];
 }
 
-const CreateProject: React.FC<CreateProjectProps> = ({ onCreate, onCancel, loading = false }) => {
+const CreateProject: React.FC<CreateProjectProps> = ({ onCreate, onCancel, loading = false, templates = [] }) => {
   const [customerName, setCustomerName] = useState('');
   const [projectName, setProjectName] = useState('');
-  const [template, setTemplate] = useState('');
+  const [projectTemplateId, setProjectTemplateId] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async () => {
@@ -26,7 +27,7 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onCreate, onCancel, loadi
       await onCreate({
         customer_name: customerName,
         project_name: projectName,
-        template_name: template,
+        project_template_id: projectTemplateId || undefined,
       });
     } finally {
       setSubmitting(false);
@@ -44,9 +45,24 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onCreate, onCancel, loadi
           <Input value={projectName} onChange={setProjectName} placeholder="输入项目名" />
         </Form.Item>
         <Form.Item label="模板选择" style={{ marginBottom: '24px' }}>
-          <Select value={template} onChange={setTemplate} style={{ width: '100%' }}>
-            <Select.Option value="模板1">模板1</Select.Option>
-            <Select.Option value="模板2">模板2</Select.Option>
+          <Select
+            value={projectTemplateId}
+            onChange={setProjectTemplateId}
+            style={{ width: '100%' }}
+            placeholder="请选择一个项目模板(可选)"
+            allowClear
+          >
+            {templates && templates.length > 0 ? (
+              templates.map((template) => (
+                <Select.Option key={template.id} value={template.id}>
+                  {template.template_name}
+                </Select.Option>
+              ))
+            ) : (
+              <Select.Option value="" disabled>
+                无可用模板
+              </Select.Option>
+            )}
           </Select>
         </Form.Item>
         <Form.Item>

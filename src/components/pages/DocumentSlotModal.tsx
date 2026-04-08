@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Input, Spin, Empty, message, List } from 'antd';
+import { Input, Spin, Empty, message, List, Modal as AntdModal } from 'antd';
 import Modal from '../common/Modal';
 import FileList from '../common/FileList';
 import Button from '../common/Button';
@@ -60,11 +60,43 @@ const DocumentSlotModal: React.FC<DocumentSlotModalProps> = ({ slotId, visible, 
     }
   };
 
+  const showRemarkInputModal = (callback: (remark: string) => void) => {
+    let inputValue = '';
+    AntdModal.confirm({
+      title: '输入文件备注',
+      content: (
+        <Input
+          placeholder="请输入备注信息"
+          onChange={(e) => { inputValue = e.target.value; }}
+        />
+      ),
+      okText: '确认',
+      cancelText: '取消',
+      onOk() {
+        if (!inputValue.trim()) {
+          message.error('备注不能为空');
+          return Promise.reject();
+        }
+        callback(inputValue);
+      },
+    });
+  };
+
   const handleImportFile = async (stagingFile: StagingFile) => {
+    if (!remarks.trim()) {
+      showRemarkInputModal((remark) => {
+        handleImportFileWithRemark(stagingFile, remark);
+      });
+      return;
+    }
+    handleImportFileWithRemark(stagingFile, remarks);
+  };
+
+  const handleImportFileWithRemark = async (stagingFile: StagingFile, remark: string) => {
     try {
       const request: ImportFromStagingRequest = {
         staging_file_path: stagingFile.full_path,
-        remark: remarks || undefined,
+        remark: remark || undefined,
       };
       await importFromStaging(slotId, request);
       message.success('文件导入成功');
@@ -92,8 +124,18 @@ const DocumentSlotModal: React.FC<DocumentSlotModalProps> = ({ slotId, visible, 
       return;
     }
 
+    if (!remarks.trim()) {
+      showRemarkInputModal((remark) => {
+        handleUploadFileWithRemark(file, remark);
+      });
+      return;
+    }
+    handleUploadFileWithRemark(file, remarks);
+  };
+
+  const handleUploadFileWithRemark = async (file: File, remark: string) => {
     try {
-      await uploadFile(slotId, file, remarks || undefined);
+      await uploadFile(slotId, file, remark || undefined);
       message.success('文件上传成功');
 
       const [filesList, detail, staging] = await Promise.all([

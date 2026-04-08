@@ -78,8 +78,8 @@ def import_from_staging(slot_id: str, request: ImportFromStagingRequest, db: Ses
         raise HTTPException(status_code=404, detail="槽位不存在")
 
     target_folder_path, target_folder_exists = get_slot_target_folder_path(slot, db)
-    if not target_folder_path or not target_folder_exists:
-        raise HTTPException(status_code=400, detail="目标目录不存在")
+    if not target_folder_path:
+        raise HTTPException(status_code=400, detail="无法确定目标目录")
 
     staging_dir = os.path.expanduser(getattr(__import__('config'), 'STAGING_UPLOAD_DIR', '~/projects_inbox'))
     if not os.path.abspath(request.staging_file_path).startswith(os.path.abspath(staging_dir)):
@@ -157,9 +157,9 @@ def upload_file(
     if not slot:
         raise HTTPException(status_code=404, detail="槽位不存在")
 
-    target_folder_path, target_folder_exists = get_slot_target_folder_path(slot, db)
-    if not target_folder_path or not target_folder_exists:
-        raise HTTPException(status_code=400, detail="目标目录不存在")
+    target_folder_path, _ = get_slot_target_folder_path(slot, db)
+    if not target_folder_path:
+        raise HTTPException(status_code=400, detail="无法确定目标目录")
 
     filename = os.path.basename(file.filename)
     target_file_path = os.path.join(target_folder_path, filename)
@@ -200,9 +200,9 @@ def import_local_file(slot_id: str, request: ImportLocalFileRequest, db: Session
     if not slot:
         raise HTTPException(status_code=404, detail="槽位不存在")
 
-    target_folder_path, target_folder_exists = get_slot_target_folder_path(slot, db)
-    if not target_folder_path or not target_folder_exists:
-        raise HTTPException(status_code=400, detail="目标目录不存在")
+    target_folder_path, _ = get_slot_target_folder_path(slot, db)
+    if not target_folder_path:
+        raise HTTPException(status_code=400, detail="无法确定目标目录")
 
     if not os.path.isabs(request.local_file_path):
         raise HTTPException(status_code=400, detail="请填写绝对路径")

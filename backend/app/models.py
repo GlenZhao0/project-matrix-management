@@ -5,6 +5,55 @@ import uuid
 
 from .database import Base
 
+class ProjectTemplate(Base):
+    __tablename__ = "project_templates"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    template_name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    projects = relationship("Project", back_populates="project_template")
+
+
+class SlotTemplate(Base):
+    __tablename__ = "slot_templates"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    template_name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    recommended_part_type = Column(String(255), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    items = relationship("SlotTemplateItem", back_populates="slot_template", cascade="all, delete-orphan")
+    part_types = relationship("PartType", back_populates="default_slot_template")
+
+
+class SlotTemplateItem(Base):
+    __tablename__ = "slot_template_items"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    slot_template_id = Column(String(36), ForeignKey("slot_templates.id"), nullable=False)
+    group_type = Column(String(50), nullable=False)
+    slot_name = Column(String(255), nullable=False)
+    sort_order = Column(Integer, default=0)
+
+    slot_template = relationship("SlotTemplate", back_populates="items")
+
+
+class PartType(Base):
+    __tablename__ = "part_types"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    type_name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    default_slot_template_id = Column(String(36), ForeignKey("slot_templates.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    default_slot_template = relationship("SlotTemplate", back_populates="part_types")
+    parts = relationship("Part", back_populates="part_type")
+
+
 class Project(Base):
     __tablename__ = "projects"
 
@@ -12,11 +61,19 @@ class Project(Base):
     customer_name = Column(String(255), nullable=False)
     project_name = Column(String(255), nullable=False)
     template_name = Column(String(255), nullable=True)
+    project_template_id = Column(String(36), ForeignKey("project_templates.id"), nullable=True)
     root_path = Column(String(1024), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+    project_template = relationship("ProjectTemplate", back_populates="projects")
+    default_slot_template_id = Column(String(36), ForeignKey("slot_templates.id"), nullable=True)
+    default_slot_template = relationship("SlotTemplate", foreign_keys=[default_slot_template_id])
     parts = relationship("Part", back_populates="project", cascade="all, delete-orphan")
     document_slots = relationship("DocumentSlot", back_populates="project", cascade="all, delete-orphan")
+
+    @property
+    def default_slot_template_name(self):
+        return self.default_slot_template.template_name if self.default_slot_template else None
 
 
 class Part(Base):
@@ -24,11 +81,20 @@ class Part(Base):
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     project_id = Column(String(36), ForeignKey("projects.id"), nullable=False)
+    part_no = Column(String(255), nullable=True)
     part_name = Column(String(255), nullable=False)
+    part_type_id = Column(String(36), ForeignKey("part_types.id"), nullable=True)
+    parent_part_id = Column(String(36), ForeignKey("parts.id"), nullable=True)
+    remark = Column(Text, nullable=True)
+    applied_slot_template_id = Column(String(36), ForeignKey("slot_templates.id"), nullable=True)
     sort_order = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     project = relationship("Project", back_populates="parts")
+    part_type = relationship("PartType", back_populates="parts")
+    parent_part = relationship("Part", remote_side=[id], back_populates="children")
+    children = relationship("Part", back_populates="parent_part", cascade="all, delete-orphan")
+    applied_slot_template = relationship("SlotTemplate")
     document_slots = relationship("DocumentSlot", back_populates="part", cascade="all, delete-orphan")
 
 
