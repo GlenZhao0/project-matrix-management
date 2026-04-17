@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from typing import List, Optional
 import subprocess
 import os
@@ -8,14 +9,26 @@ from datetime import datetime
 
 from app.database import get_db
 from app.models import DocumentSlot, UploadedFile
-from app.schemas import SlotDetailResponse, FileRecordResponse, StagingFileResponse, ImportFromStagingRequest, ImportLocalFileRequest
-from app.services.project_folders import get_slot_target_folder_path
+from app.schemas import (
+    SlotDetailResponse,
+    FileRecordResponse,
+    StagingFileResponse,
+    ImportFromStagingRequest,
+    ImportLocalFileRequest,
+    DeleteStagingFileRequest,
+)
+from app.services.project_folders import get_slot_target_folder_path, get_staging_upload_dir
+from app.services.project_metadata import write_project_metadata
 
 router = APIRouter(prefix="/document-slots", tags=["slots"])
 
+
+def _refresh_slot_project_metadata(slot: DocumentSlot, db: Session) -> None:
+    write_project_metadata(slot.project_id, db)
+
 @router.get("/staging-files", response_model=List[StagingFileResponse])
 def get_staging_files():
-    staging_dir = os.path.expanduser(getattr(__import__('config'), 'STAGING_UPLOAD_DIR', '~/projects_inbox'))
+    staging_dir = get_staging_upload_dir()
     if not os.path.exists(staging_dir):
         return []
 
@@ -33,6 +46,32 @@ def get_staging_files():
     except OSError:
         return []
     return files
+
+@router.api_route("/staging-files", methods=["DELETE"])
+def delete_staging_file(request: DeleteStagingFileRequest):
+    filename = (request.filename or "").strip()
+    if not filename:
+        raise HTTPException(status_code=400, detail="filename 不能为空")
+
+    if os.path.basename(filename) != filename:
+        raise HTTPException(status_code=400, detail="只允许删除待上传目录中的文件")
+
+    staging_dir = get_staging_upload_dir()
+    target_path = os.path.abspath(os.path.join(staging_dir, filename))
+    if not target_path.startswith(os.path.abspath(staging_dir) + os.sep):
+        raise HTTPException(status_code=400, detail="只允许删除待上传目录中的文件")
+
+    if not os.path.exists(target_path):
+        raise HTTPException(status_code=404, detail="待上传文件不存在")
+
+    if not os.path.isfile(target_path):
+        raise HTTPException(status_code=400, detail="目标不是文件")
+
+    try:
+        os.remove(target_path)
+        return {"success": True, "message": "文件删除成功"}
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"删除文件失败: {exc}")
 
 @router.get("/{slot_id}", response_model=SlotDetailResponse)
 def get_slot_detail(slot_id: str, db: Session = Depends(get_db)):
@@ -81,7 +120,7 @@ def import_from_staging(slot_id: str, request: ImportFromStagingRequest, db: Ses
     if not target_folder_path:
         raise HTTPException(status_code=400, detail="无法确定目标目录")
 
-    staging_dir = os.path.expanduser(getattr(__import__('config'), 'STAGING_UPLOAD_DIR', '~/projects_inbox'))
+    staging_dir = get_staging_upload_dir()
     if not os.path.abspath(request.staging_file_path).startswith(os.path.abspath(staging_dir)):
         raise HTTPException(status_code=400, detail="文件不在待上传目录中")
 
@@ -117,6 +156,8 @@ def import_from_staging(slot_id: str, request: ImportFromStagingRequest, db: Ses
         if request.remark:
             slot.note = request.remark
 
+        db.flush()
+        _refresh_slot_project_metadata(slot, db)
         db.commit()
         return {"message": "文件导入成功"}
     except Exception as e:
@@ -188,6 +229,8 @@ def upload_file(
         if remark:
             slot.note = remark
 
+        db.flush()
+        _refresh_slot_project_metadata(slot, db)
         db.commit()
         return {"message": "文件上传成功"}
     except Exception as e:
@@ -242,6 +285,8 @@ def import_local_file(slot_id: str, request: ImportLocalFileRequest, db: Session
         if request.remark:
             slot.note = request.remark
 
+        db.flush()
+        _refresh_slot_project_metadata(slot, db)
         db.commit()
         return {"message": "本地文件导入成功"}
     except Exception as e:
@@ -256,3 +301,37 @@ def get_slot_files(slot_id: str, db: Session = Depends(get_db)):
 
     files = db.query(UploadedFile).filter(UploadedFile.slot_id == slot_id).all()
     return files
+
+
+@router.delete("/{slot_id}")
+def delete_slot(slot_id: str, db: Session = Depends(get_db)):
+    slot = db.query(DocumentSlot).filter(DocumentSlot.id == slot_id).first()
+    if not slot:
+        raise HTTPException(status_code=404, detail="槽位不存在")
+
+    file_record_count = (
+        db.query(func.count(UploadedFile.id))
+        .filter(UploadedFile.slot_id == slot_id)
+        .scalar()
+        or 0
+    )
+    has_effective_file = (
+        file_record_count > 0
+        or bool(slot.has_file)
+        or bool(slot.latest_filename)
+        or slot.latest_upload_at is not None
+    )
+    if has_effective_file:
+        raise HTTPException(status_code=409, detail="该槽位下仍有文件，请先清空或移走文件后再删除")
+
+    project_id = slot.project_id
+
+    try:
+        db.delete(slot)
+        db.flush()
+        write_project_metadata(project_id, db)
+        db.commit()
+        return {"message": "槽位已删除"}
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"删除槽位失败: {exc}")

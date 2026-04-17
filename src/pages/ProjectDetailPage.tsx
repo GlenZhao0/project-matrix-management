@@ -1,20 +1,35 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Spin, Empty } from 'antd';
 import ProjectDetail from '../components/pages/ProjectDetail';
-import { getProject, getProjectParts, ProjectResponse, ProjectPart } from '../api/projects';
+import { getProject, getProjectParts, getProjects, ProjectResponse, ProjectPart } from '../api/projects';
+
+const DEFAULT_PROJECT_LIST_NAME = '默认清单';
+
+const normalizeProjectListName = (value?: string | null) => {
+  const normalized = value?.trim();
+  if (!normalized || normalized === '项目清单') {
+    return DEFAULT_PROJECT_LIST_NAME;
+  }
+  return normalized;
+};
 
 const ProjectDetailPage: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
   const [project, setProject] = useState<ProjectResponse | null>(null);
   const [parts, setParts] = useState<ProjectPart[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchProjectData = async (projectId: string) => {
+  const fetchProjectData = async (projectId: string, options?: { preserveView?: boolean }) => {
+    const preserveView = options?.preserveView ?? false;
+
     try {
-      setLoading(true);
+      if (!preserveView) {
+        setLoading(true);
+      }
       setError(null);
       const [projectData, partData] = await Promise.all([
         getProject(projectId),
@@ -27,7 +42,9 @@ const ProjectDetailPage: React.FC = () => {
       setError(errorMsg);
       console.error('获取项目数据出错:', err);
     } finally {
-      setLoading(false);
+      if (!preserveView) {
+        setLoading(false);
+      }
     }
   };
 
@@ -36,14 +53,38 @@ const ProjectDetailPage: React.FC = () => {
     fetchProjectData(id);
   }, [id]);
 
-  const handleBack = () => {
+  const handleBack = async () => {
+    const targetListName = normalizeProjectListName(project?.project_list_name);
+
+    try {
+      const allProjects = await getProjects();
+      const availableLists = Array.from(
+        new Set(allProjects.map((item) => normalizeProjectListName(item.project_list_name)).filter(Boolean)),
+      );
+
+      if (availableLists.includes(targetListName)) {
+        navigate(`/?projectListName=${encodeURIComponent(targetListName)}`);
+        return;
+      }
+
+      if (availableLists[0]) {
+        navigate(`/?projectListName=${encodeURIComponent(availableLists[0])}`);
+        return;
+      }
+    } catch (err) {
+      console.error('返回项目清单时获取清单列表失败:', err);
+    }
+
     navigate('/');
   };
 
   const handleRefresh = async () => {
     if (!id) return;
-    await fetchProjectData(id);
+    await fetchProjectData(id, { preserveView: true });
   };
+
+  const requestedTab = searchParams.get('tab') === 'part-list' ? 'part-list' : 'summary';
+  const startSummaryInEditMode = requestedTab === 'summary' && searchParams.get('mode') === 'edit';
 
   if (loading) {
     return <Spin size="large" tip="加载中..." style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '500px' }} />;
@@ -73,6 +114,8 @@ const ProjectDetailPage: React.FC = () => {
       parts={parts}
       onBack={handleBack}
       onRefresh={handleRefresh}
+      initialTab={requestedTab}
+      startSummaryInEditMode={startSummaryInEditMode}
     />
   );
 };

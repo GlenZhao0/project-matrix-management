@@ -6,6 +6,7 @@ from app.api.projects import router as projects_router
 from app.api.matrix import router as matrix_router
 from app.api.slots import router as slots_router
 from app.api.slot_templates import router as slot_templates_router
+from app.api.system import router as system_router
 import config
 
 app = FastAPI(
@@ -27,6 +28,7 @@ app.include_router(projects_router, prefix=config.API_PREFIX)
 app.include_router(matrix_router, prefix=config.API_PREFIX)
 app.include_router(slots_router, prefix=config.API_PREFIX)
 app.include_router(slot_templates_router, prefix=config.API_PREFIX)
+app.include_router(system_router, prefix=config.API_PREFIX)
 
 @app.get("/")
 def root():

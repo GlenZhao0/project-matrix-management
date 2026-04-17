@@ -16,9 +16,10 @@ export interface MatrixSlot {
 
 export interface FileRecord {
   id: string;
-  name: string;
-  uploadDate?: string;
-  remarks?: string;
+  filename: string;
+  uploaded_at?: string;
+  remark?: string;
+  is_latest?: boolean;
 }
 
 export interface SlotDetail {
@@ -39,6 +40,10 @@ export interface StagingFile {
   full_path: string;
   modified_at: string;
   size: number;
+}
+
+export interface DeleteStagingFileRequest {
+  filename: string;
 }
 
 export interface ImportFromStagingRequest {
@@ -79,6 +84,13 @@ export async function getStagingFiles(): Promise<StagingFile[]> {
   return apiClient.get<StagingFile[]>('/document-slots/staging-files');
 }
 
+export async function deleteStagingFile(filename: string): Promise<{ success: boolean; message: string }> {
+  return apiClient.request<{ success: boolean; message: string }>('/document-slots/staging-files', {
+    method: 'DELETE',
+    body: { filename } as any,
+  });
+}
+
 export async function importFromStaging(slotId: string, request: ImportFromStagingRequest): Promise<{ message: string }> {
   return apiClient.post<{ message: string }, ImportFromStagingRequest>(`/document-slots/${slotId}/import-from-staging`, request);
 }
@@ -98,4 +110,10 @@ export async function uploadFile(slotId: string, file: File, remark?: string): P
 
 export async function getSlotFiles(slotId: string): Promise<FileRecord[]> {
   return apiClient.get<FileRecord[]>(`/document-slots/${slotId}/files`);
+}
+
+export async function deleteSlot(slotId: string): Promise<{ message: string }> {
+  return apiClient.request<{ message: string }>(`/document-slots/${slotId}`, {
+    method: 'DELETE',
+  });
 }

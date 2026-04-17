@@ -14,6 +14,10 @@ interface CreateProjectProps {
 const CreateProject: React.FC<CreateProjectProps> = ({ onCreate, onCancel, loading = false, templates = [] }) => {
   const [customerName, setCustomerName] = useState('');
   const [projectName, setProjectName] = useState('');
+  const [internalCode, setInternalCode] = useState('');
+  const [annualRevenueEstimate, setAnnualRevenueEstimate] = useState('');
+  const [engineerName, setEngineerName] = useState('');
+  const [pmName, setPmName] = useState('');
   const [projectTemplateId, setProjectTemplateId] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -27,6 +31,10 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onCreate, onCancel, loadi
       await onCreate({
         customer_name: customerName,
         project_name: projectName,
+        internal_code: internalCode || undefined,
+        annual_revenue_estimate: annualRevenueEstimate || undefined,
+        engineer_name: engineerName || undefined,
+        pm_name: pmName || undefined,
         project_template_id: projectTemplateId || undefined,
       });
     } finally {
@@ -43,6 +51,18 @@ const CreateProject: React.FC<CreateProjectProps> = ({ onCreate, onCancel, loadi
         </Form.Item>
         <Form.Item label="项目名" style={{ marginBottom: '16px' }}>
           <Input value={projectName} onChange={setProjectName} placeholder="输入项目名" />
+        </Form.Item>
+        <Form.Item label="内部代码" style={{ marginBottom: '16px' }}>
+          <Input value={internalCode} onChange={setInternalCode} placeholder="输入内部代码" />
+        </Form.Item>
+        <Form.Item label="预计年营收" style={{ marginBottom: '16px' }}>
+          <Input value={annualRevenueEstimate} onChange={setAnnualRevenueEstimate} placeholder="例如 1200 万 / 2.5M USD" />
+        </Form.Item>
+        <Form.Item label="负责工程师" style={{ marginBottom: '16px' }}>
+          <Input value={engineerName} onChange={setEngineerName} placeholder="输入负责工程师" />
+        </Form.Item>
+        <Form.Item label="PM" style={{ marginBottom: '16px' }}>
+          <Input value={pmName} onChange={setPmName} placeholder="输入 PM" />
         </Form.Item>
         <Form.Item label="模板选择" style={{ marginBottom: '24px' }}>
           <Select

@@ -32,7 +32,7 @@ const createEmptyEditorState = (): TemplateEditorState => ({
   items: [],
 });
 
-const slotItemGridTemplate = '110px 120px 50px 50px';
+const slotItemGridTemplate = '104px 136px 52px 56px';
 
 const createEditorItem = (item: SlotTemplateItemInput, uiId?: string): TemplateEditorItem => ({
   ...item,
@@ -195,23 +195,55 @@ const TemplatePage: React.FC = () => {
   };
 
   return (
-    <div style={{ minHeight: '100vh', padding: '24px' }}>
-      <div style={{ marginBottom: '16px' }}>
+    <div style={{ minHeight: '100vh', padding: '24px', boxSizing: 'border-box' }}>
+      <div style={{ maxWidth: '1180px', width: '100%', margin: '0 auto', display: 'grid', gap: '16px' }}>
+      <div
+        style={{
+          border: '1px solid var(--border-color)',
+          borderRadius: '10px',
+          backgroundColor: 'var(--bg-card)',
+          boxShadow: 'var(--shadow-md)',
+          padding: '10px 14px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: '12px',
+          flexWrap: 'wrap',
+        }}
+      >
+        <div>
+          <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)' }}>模板清单</div>
+          <div style={{ marginTop: '4px', color: 'var(--text-secondary)', fontSize: '13px' }}>
+            在这里维护模板基础信息、推荐 Part Type 与默认槽位项。
+          </div>
+        </div>
         <Button onClick={() => navigate('/')}>返回</Button>
       </div>
-      <h1 style={{ marginBottom: '20px', fontSize: '24px', fontWeight: 700 }}>模板管理</h1>
-      <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: '20px', alignItems: 'start' }}>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '280px minmax(0, 740px)',
+          gap: '24px',
+          alignItems: 'start',
+          justifyContent: 'center',
+        }}
+      >
         <div
           style={{
-            border: '1px solid #d9d9d9',
-            borderRadius: '12px',
-            backgroundColor: '#ffffff',
-            padding: '16px',
-            boxShadow: '0 8px 24px rgba(15, 23, 42, 0.06)',
+            border: '1px solid var(--border-color)',
+            borderRadius: '10px',
+            backgroundColor: 'var(--bg-card)',
+            padding: '10px',
+            boxShadow: 'var(--shadow-md)',
+            position: 'sticky',
+            top: '24px',
           }}
         >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', gap: '12px' }}>
-            <div style={{ fontSize: '16px', fontWeight: 700 }}>模板列表</div>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '8px', marginBottom: '12px' }}>
+            <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)' }}>Template List</div>
+            <div style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>模板导航</div>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', gap: '10px' }}>
             <Button type="primary" onClick={handleCreateNew}>新建模板</Button>
           </div>
           {listLoading ? (
@@ -230,17 +262,18 @@ const TemplatePage: React.FC = () => {
                     key={template.id}
                     style={{
                       padding: '12px',
-                      marginBottom: '8px',
-                      border: active ? '1px solid #1677ff' : '1px solid #e5e7eb',
+                      marginBottom: '6px',
+                      border: active ? '1px solid var(--primary-border)' : '1px solid var(--border-strong)',
                       borderRadius: '8px',
-                      backgroundColor: active ? '#eff6ff' : '#ffffff',
+                      backgroundColor: active ? 'var(--primary-soft)' : 'var(--bg-card)',
                       cursor: 'pointer',
+                      boxShadow: active ? '0 5px 12px color-mix(in srgb, var(--primary-color) 18%, transparent)' : 'none',
                     }}
                     onClick={() => handleSelectTemplate(template.id)}
                   >
                     <div style={{ width: '100%' }}>
-                      <div style={{ fontWeight: 600, color: '#111827' }}>{template.template_name}</div>
-                      <div style={{ marginTop: '4px', color: '#6b7280', fontSize: '13px' }}>
+                        <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{template.template_name}</div>
+                      <div style={{ marginTop: '3px', color: 'var(--text-secondary)', fontSize: '12px', lineHeight: 1.35 }}>
                         {template.description || '无描述'}
                       </div>
                     </div>
@@ -252,68 +285,92 @@ const TemplatePage: React.FC = () => {
         </div>
         <div
           style={{
-            border: '1px solid #d9d9d9',
-            borderRadius: '12px',
-            backgroundColor: '#ffffff',
-            padding: '20px',
-            boxShadow: '0 8px 24px rgba(15, 23, 42, 0.06)',
-            width: '390px',
-            maxWidth: '100%',
-            justifySelf: 'center',
+            border: '1px solid var(--border-color)',
+            borderRadius: '10px',
+            backgroundColor: 'var(--bg-card)',
+            padding: '12px 16px',
+            boxShadow: 'var(--shadow-md)',
+            minWidth: 0,
+            width: '100%',
+            maxWidth: '740px',
+            justifySelf: 'stretch',
           }}
         >
           {detailLoading ? (
             <Spin tip="模板详情加载中..." />
           ) : (
-            <div style={{ display: 'grid', gap: '20px' }}>
-              <div>
-                <div style={{ marginBottom: '8px', fontSize: '14px', fontWeight: 600, color: '#374151' }}>模板名</div>
+            <div style={{ maxWidth: '780px', margin: '0 auto', width: '100%' }}>
+              <div style={{ display: 'grid', gap: '12px', minWidth: 0 }}>
+                <div style={{ paddingBottom: '8px', borderBottom: '1px solid var(--border-color)' }}>
+                  <div style={{ fontSize: '17px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                    {selectedTemplateId ? 'Template Detail' : '新建模板'}
+                  </div>
+                  <div style={{ marginTop: '3px', color: 'var(--text-secondary)', fontSize: '13px' }}>
+                    右侧工作区用于编辑模板基础信息与默认槽位项。
+                  </div>
+                </div>
+              <div style={{ padding: '10px 12px', border: '1px solid var(--border-strong)', borderRadius: '10px', backgroundColor: 'var(--bg-card-soft)', width: '100%', minWidth: 0 }}>
+                <div style={{ marginBottom: '6px', fontSize: '12px', fontWeight: 700, color: 'var(--text-primary)' }}>模板名</div>
                 <Input
                   value={editorState.template_name}
                   onChange={(e) => handleFieldChange('template_name', e.target.value)}
                   placeholder="输入模板名"
-                  style={{ width: '380px', maxWidth: '100%' }}
+                  style={{ width: '100%', maxWidth: '100%' }}
                 />
               </div>
-              <div>
-                <div style={{ marginBottom: '8px', fontSize: '14px', fontWeight: 600, color: '#374151' }}>描述</div>
+              <div style={{ padding: '10px 12px', border: '1px solid var(--border-strong)', borderRadius: '10px', backgroundColor: 'var(--bg-card-soft)', width: '100%', minWidth: 0 }}>
+                <div style={{ marginBottom: '6px', fontSize: '12px', fontWeight: 700, color: 'var(--text-primary)' }}>描述</div>
                 <Input.TextArea
                   value={editorState.description}
                   onChange={(e) => handleFieldChange('description', e.target.value)}
                   placeholder="输入模板描述"
                   rows={3}
-                  style={{ width: '380px', maxWidth: '100%' }}
+                  style={{ width: '100%', maxWidth: '100%', display: 'block' }}
                 />
               </div>
-              <div>
-                <div style={{ marginBottom: '8px', fontSize: '14px', fontWeight: 600, color: '#374151' }}>推荐 Part Type</div>
+              <div style={{ padding: '10px 12px', border: '1px solid var(--border-strong)', borderRadius: '10px', backgroundColor: 'var(--bg-card-soft)', width: '100%', minWidth: 0 }}>
+                <div style={{ marginBottom: '6px', fontSize: '12px', fontWeight: 700, color: 'var(--text-primary)' }}>推荐 Part Type</div>
                 <Input
                   value={editorState.recommended_part_type}
                   onChange={(e) => handleFieldChange('recommended_part_type', e.target.value)}
                   placeholder="可选，普通字符串"
-                  style={{ width: '380px', maxWidth: '100%' }}
+                  style={{ width: '100%', maxWidth: '100%' }}
                 />
               </div>
-              <div>
-                <div style={{ marginBottom: '12px' }}>
-                  <div style={{ fontSize: '16px', fontWeight: 700, marginBottom: '12px' }}>槽位项</div>
+              <div style={{ padding: '10px 12px', border: '1px solid var(--border-strong)', borderRadius: '10px', backgroundColor: 'var(--bg-card-muted)', minWidth: 0 }}>
+                <div style={{ marginBottom: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
+                  <div>
+                    <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '3px' }}>槽位项</div>
+                    <div style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>维护模板中的默认槽位清单</div>
+                  </div>
                   <Button onClick={handleAddItem}>新增槽位项</Button>
                 </div>
                 {editorState.items.length === 0 ? (
-                  <div style={{ color: '#6b7280', fontSize: '14px' }}>暂无槽位项</div>
+                  <div style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>暂无槽位项</div>
                 ) : (
-                  <div style={{ overflowX: 'auto' }}>
-                    <div style={{ width: 'fit-content', display: 'grid', gap: '12px' }}>
+                  <div style={{ overflowX: 'auto', minWidth: 0 }}>
+                    <div
+                      style={{
+                        width: 'fit-content',
+                        display: 'grid',
+                        gap: '6px',
+                        minWidth: 0,
+                        padding: '8px',
+                        border: '1px solid var(--border-strong)',
+                        borderRadius: '8px',
+                        backgroundColor: 'var(--bg-card)',
+                      }}
+                    >
                       <div
                         style={{
                           display: 'grid',
                           gridTemplateColumns: slotItemGridTemplate,
-                          gap: '12px',
+                          gap: '8px',
                           alignItems: 'center',
-                          padding: '0 12px',
-                          color: '#6b7280',
-                          fontSize: '13px',
-                          fontWeight: 600,
+                          padding: '0 8px 2px',
+                          color: 'var(--text-secondary)',
+                          fontSize: '12px',
+                          fontWeight: 700,
                         }}
                       >
                         <div>分组</div>
@@ -327,12 +384,12 @@ const TemplatePage: React.FC = () => {
                           style={{
                             display: 'grid',
                             gridTemplateColumns: slotItemGridTemplate,
-                            gap: '12px',
+                            gap: '8px',
                             alignItems: 'center',
-                            padding: '12px',
-                            border: '1px solid #e5e7eb',
-                            borderRadius: '8px',
-                            backgroundColor: '#f8fafc',
+                            padding: '6px 8px',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: '6px',
+                            backgroundColor: 'var(--bg-card)',
                           }}
                         >
                           <Select
@@ -354,21 +411,40 @@ const TemplatePage: React.FC = () => {
                             onChange={(e) => handleItemChange(index, 'sort_order', Number(e.target.value))}
                             placeholder="排序"
                           />
-                          <Button onClick={() => handleRemoveItem(index)}>删除</Button>
+                          <Button
+                            size="small"
+                            onClick={() => handleRemoveItem(index)}
+                            style={{ width: '100%', justifySelf: 'stretch' }}
+                          >
+                            删除
+                          </Button>
                         </div>
                       ))}
                     </div>
                   </div>
                 )}
               </div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  alignItems: 'center',
+                  paddingTop: '10px',
+                  marginTop: '2px',
+                  borderTop: '1px solid var(--border-color)',
+                  minHeight: '42px',
+                  background: 'linear-gradient(180deg, transparent 0%, var(--bg-card-soft) 100%)',
+                }}
+              >
                 <Button type="primary" onClick={handleSave} loading={saving}>
                   {selectedTemplateId ? '保存模板' : '创建模板'}
                 </Button>
               </div>
             </div>
+            </div>
           )}
         </div>
+      </div>
       </div>
     </div>
   );

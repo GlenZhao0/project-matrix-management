@@ -3,10 +3,11 @@ import re
 import logging
 import shutil
 import subprocess
+from typing import Optional, Tuple
 from sqlalchemy.orm import Session
 
-import config
 from app.models import DocumentSlot, Project, Part
+from app.services.system_settings import get_system_path_value
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +15,7 @@ PROJECT_PARTS = ["Part A", "Part B", "Part C"]
 GROUP_DIRS = ["外来文件", "内部文件"]
 DOCUMENT_TYPES = ["CBD", "FAI", "CPK", "DFM", "DWG"]
 INVALID_FILENAME_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]+')
+PROJECT_METADATA_FILENAME = ".project_meta.json"
 
 
 def sanitize_dir_name(value: str) -> str:
@@ -32,13 +34,31 @@ def sanitize_dir_name(value: str) -> str:
 
 
 def get_project_root_dir() -> str:
-    root_dir = getattr(config, "PROJECT_ROOT_DIR", "~/projects_data")
-    return os.path.abspath(os.path.expanduser(root_dir))
+    root_dir = get_system_path_value("project_root")
+    os.makedirs(root_dir, exist_ok=True)
+    return root_dir
+
+
+def get_project_exports_dir() -> str:
+    exports_dir = get_system_path_value("export_root")
+    os.makedirs(exports_dir, exist_ok=True)
+    return exports_dir
+
+
+def set_project_exports_dir(path: str) -> str:
+    from app.services.system_settings import update_system_path_settings, get_system_path_settings
+
+    current_settings = get_system_path_settings()
+    updated_settings = update_system_path_settings(
+        project_root=current_settings["project_root"],
+        import_root=current_settings["import_root"],
+        export_root=path,
+    )
+    return updated_settings["export_root"]
 
 
 def get_staging_upload_dir() -> str:
-    staging_dir = getattr(config, "STAGING_UPLOAD_DIR", "~/projects_inbox")
-    path = os.path.abspath(os.path.expanduser(staging_dir))
+    path = get_system_path_value("import_root")
     os.makedirs(path, exist_ok=True)
     return path
 
@@ -63,8 +83,108 @@ def create_project_folders(customer_name: str, project_name: str) -> str:
         raise RuntimeError(f"项目目录创建失败: {exc}") from exc
 
 
-from typing import Optional, Tuple
+def delete_project_folder(project: Project) -> bool:
+    if not project.root_path:
+        return False
 
+    normalized_path = os.path.abspath(project.root_path)
+    project_root_dir = get_project_root_dir()
+
+    if not normalized_path.startswith(project_root_dir + os.sep):
+        raise RuntimeError("项目目录不在允许删除范围内")
+
+    if not os.path.isdir(normalized_path):
+        return False
+
+    try:
+        shutil.rmtree(normalized_path)
+        return True
+    except Exception as exc:
+        logger.exception("删除项目目录失败: %s", exc)
+        raise RuntimeError(f"删除项目目录失败: {exc}") from exc
+
+
+def get_project_target_folder_path(project: Project) -> Tuple[Optional[str], bool]:
+    if not project.root_path:
+        return None, False
+
+    path = os.path.abspath(project.root_path)
+    return path, os.path.isdir(path)
+
+
+def is_project_folder_in_allowed_delete_scope(project: Project) -> bool:
+    project_path, project_exists = get_project_target_folder_path(project)
+    if not project_path or not project_exists:
+        return False
+
+    project_root_dir = get_project_root_dir()
+    return project_path.startswith(project_root_dir + os.sep)
+
+
+def _remove_empty_child_directories(root_path: str) -> None:
+    for current_root, dirs, _files in os.walk(root_path, topdown=False):
+        for directory in dirs:
+            dir_path = os.path.join(current_root, directory)
+            if os.path.isdir(dir_path) and not os.listdir(dir_path):
+                os.rmdir(dir_path)
+
+
+def _is_project_metadata_file(root_path: str, file_path: str) -> bool:
+    try:
+        return (
+            os.path.basename(file_path) == PROJECT_METADATA_FILENAME
+            and os.path.dirname(os.path.abspath(file_path)) == os.path.abspath(root_path)
+        )
+    except OSError:
+        return False
+
+
+def count_project_physical_files(project: Project) -> int:
+    project_folder_path, project_folder_exists = get_project_target_folder_path(project)
+    if not project_folder_path or not project_folder_exists:
+        return 0
+
+    file_count = 0
+    for root, _dirs, files in os.walk(project_folder_path):
+        for filename in files:
+            file_path = os.path.join(root, filename)
+            if _is_project_metadata_file(project_folder_path, file_path):
+                continue
+            if os.path.isfile(file_path):
+                file_count += 1
+
+    return file_count
+
+
+def move_project_files_to_staging(project: Project) -> int:
+    project_folder_path, project_folder_exists = get_project_target_folder_path(project)
+    if not project_folder_path or not project_folder_exists:
+        raise RuntimeError("项目目录不存在")
+
+    if not is_project_folder_in_allowed_delete_scope(project):
+        raise RuntimeError("项目目录不在允许自动处理范围内，不能自动转到待上传文件夹")
+
+    staging_dir = get_staging_upload_dir()
+    moved_count = 0
+
+    try:
+        for root, _dirs, files in os.walk(project_folder_path):
+            for filename in files:
+                source_path = os.path.join(root, filename)
+                if _is_project_metadata_file(project_folder_path, source_path):
+                    continue
+                if not os.path.isfile(source_path):
+                    continue
+
+                target_path = _build_unique_staging_path(staging_dir, filename)
+                shutil.move(source_path, target_path)
+                moved_count += 1
+
+        _remove_empty_child_directories(project_folder_path)
+        return moved_count
+    except Exception as exc:
+        logger.exception("移动项目文件到待上传目录失败: %s", exc)
+        raise RuntimeError(f"移动项目文件失败: {exc}") from exc
 
 def get_part_target_folder_path(part: Part, db: Session) -> Tuple[Optional[str], bool]:
     try:
@@ -210,4 +330,22 @@ def get_slot_target_folder_path(slot: DocumentSlot, db: Session) -> Tuple[Option
         return path, exists
     except Exception as exc:
         logger.exception("计算槽位目标路径失败: %s", exc)
+        return None, False
+
+
+def build_slot_target_folder_path(slot: DocumentSlot, db: Session) -> Tuple[Optional[str], bool]:
+    try:
+        project = db.query(Project).filter(Project.id == slot.project_id).first()
+        if not project or not project.root_path:
+            return None, False
+
+        part = db.query(Part).filter(Part.id == slot.part_id).first()
+        if not part:
+            return None, False
+
+        group_dir = "外来文件" if slot.group_type == "external" else "内部文件"
+        path = os.path.join(project.root_path, part.part_name, group_dir, slot.document_type)
+        return path, os.path.exists(path)
+    except Exception as exc:
+        logger.exception("计算槽位原始目标路径失败: %s", exc)
         return None, False

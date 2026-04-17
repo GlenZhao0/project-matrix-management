@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.api.projects import _build_project_response
 from app.database import get_db
 from app.models import Project, Part, DocumentSlot
 from app.schemas import MatrixResponse
@@ -32,7 +33,7 @@ def get_project_matrix(project_id: str, db: Session = Depends(get_db)):
     ]
 
     return {
-        "project": project,
+        "project": _build_project_response(project),
         "parts": parts,
         "document_types": document_types,
         "slots": slot_list,

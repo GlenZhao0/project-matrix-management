@@ -1,9 +1,40 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Input, Spin, Empty, message, List, Modal as AntdModal } from 'antd';
-import Modal from '../common/Modal';
-import FileList from '../common/FileList';
+import { DeleteOutlined } from '@ant-design/icons';
 import Button from '../common/Button';
-import { getSlotFiles, FileRecord, getSlotDetail, SlotDetail, openFolder, getStagingFiles, StagingFile, importFromStaging, ImportFromStagingRequest, openLatestFile, uploadFile } from '../../api/matrix';
+import {
+  deleteStagingFile,
+  getSlotFiles,
+  FileRecord,
+  getSlotDetail,
+  SlotDetail,
+  openFolder,
+  getStagingFiles,
+  StagingFile,
+  importFromStaging,
+  ImportFromStagingRequest,
+  openLatestFile,
+  uploadFile,
+} from '../../api/matrix';
+
+const formatDateTime = (value?: string | null) => {
+  if (!value) {
+    return '';
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hour = String(date.getHours()).padStart(2, '0');
+  const minute = String(date.getMinutes()).padStart(2, '0');
+
+  return `${year}-${month}-${day} ${hour}:${minute}`;
+};
 
 interface DocumentSlotModalProps {
   slotId: string;
@@ -21,6 +52,25 @@ const DocumentSlotModal: React.FC<DocumentSlotModalProps> = ({ slotId, visible, 
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  const refreshModalData = async () => {
+    const [filesList, detail, staging] = await Promise.all([
+      getSlotFiles(slotId),
+      getSlotDetail(slotId),
+      getStagingFiles(),
+    ]);
+    setFiles(filesList);
+    setSlotDetail(detail);
+    setStagingFiles(staging);
+  };
+
+  const sortedFiles = useMemo(() => {
+    return [...files].sort((a, b) => {
+      const aTime = new Date((a as any).uploaded_at ?? (a as any).uploadDate ?? 0).getTime();
+      const bTime = new Date((b as any).uploaded_at ?? (b as any).uploadDate ?? 0).getTime();
+      return bTime - aTime;
+    });
+  }, [files]);
+
   useEffect(() => {
     if (!visible || !slotId) return;
 
@@ -28,14 +78,7 @@ const DocumentSlotModal: React.FC<DocumentSlotModalProps> = ({ slotId, visible, 
       try {
         setLoading(true);
         setError(null);
-        const [filesList, detail, staging] = await Promise.all([
-          getSlotFiles(slotId),
-          getSlotDetail(slotId),
-          getStagingFiles(),
-        ]);
-        setFiles(filesList);
-        setSlotDetail(detail);
-        setStagingFiles(staging);
+        await refreshModalData();
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : '获取数据失败';
         setError(errorMsg);
@@ -101,15 +144,7 @@ const DocumentSlotModal: React.FC<DocumentSlotModalProps> = ({ slotId, visible, 
       await importFromStaging(slotId, request);
       message.success('文件导入成功');
 
-      // 刷新数据
-      const [filesList, detail, staging] = await Promise.all([
-        getSlotFiles(slotId),
-        getSlotDetail(slotId),
-        getStagingFiles(),
-      ]);
-      setFiles(filesList);
-      setSlotDetail(detail);
-      setStagingFiles(staging);
+      await refreshModalData();
       setRemarks('');
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : '导入失败';
@@ -138,14 +173,7 @@ const DocumentSlotModal: React.FC<DocumentSlotModalProps> = ({ slotId, visible, 
       await uploadFile(slotId, file, remark || undefined);
       message.success('文件上传成功');
 
-      const [filesList, detail, staging] = await Promise.all([
-        getSlotFiles(slotId),
-        getSlotDetail(slotId),
-        getStagingFiles(),
-      ]);
-      setFiles(filesList);
-      setSlotDetail(detail);
-      setStagingFiles(staging);
+      await refreshModalData();
       setRemarks('');
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : '上传失败';
@@ -180,90 +208,190 @@ const DocumentSlotModal: React.FC<DocumentSlotModalProps> = ({ slotId, visible, 
   const canOpenFolder = slotDetail?.target_folder_path && slotDetail.target_folder_exists;
   const canOpenLatestFile = !!slotDetail?.latest_filename;
 
+  const handleDeleteStagingFile = (file: StagingFile) => {
+    AntdModal.confirm({
+      className: 'staging-file-delete-confirm',
+      title: '确认删除文件',
+      content: '文件会从文件夹删除，是否继续？',
+      okText: '删除',
+      cancelText: '取消',
+      okButtonProps: { danger: true },
+      async onOk() {
+        try {
+          await deleteStagingFile(file.filename);
+          message.success('文件删除成功');
+          const staging = await getStagingFiles();
+          setStagingFiles(staging);
+        } catch (err) {
+          const errorMsg = err instanceof Error ? err.message : '删除文件失败';
+          message.error(errorMsg);
+          throw err;
+        }
+      },
+    });
+  };
+
   if (loading) {
     return (
-      <Modal title={title} open={visible} onCancel={onClose}>
+      <AntdModal
+        title={title}
+        open={visible}
+        onCancel={onClose}
+        footer={null}
+        width={960}
+        className="document-slot-modal"
+        styles={{ body: { height: '76vh', overflow: 'hidden' } }}
+      >
         <Spin size="large" tip="加载中..." />
-      </Modal>
+      </AntdModal>
     );
   }
 
   return (
-    <Modal title={title} open={visible} onCancel={onClose}>
-      <div style={{ marginBottom: '16px' }}>
-        <strong>目标目录路径：</strong>{getTargetFolderDisplay()}
-      </div>
-      <div style={{ marginBottom: '16px' }}>
-        <Button onClick={handleOpenFolder} disabled={!canOpenFolder}>
-          打开当前目录
-        </Button>
-        <Button onClick={handleOpenLatestFile} disabled={!canOpenLatestFile} style={{ marginLeft: '8px' }}>
-          打开最新文件
-        </Button>
-      </div>
-      <div>
-        <h4 style={{ marginBottom: '8px' }}>待上传文件列表</h4>
-        {stagingFiles.length === 0 ? (
-          <Empty description="暂无待上传文件" />
-        ) : (
-          <List
-            dataSource={stagingFiles}
-            renderItem={(file) => (
-              <List.Item
-                actions={[
-                  <Button key="import" onClick={() => handleImportFile(file)}>
-                    导入
-                  </Button>
-                ]}
-              >
-                <List.Item.Meta
-                  title={file.filename}
-                  description={`大小: ${(file.size / 1024).toFixed(2)} KB | 修改时间: ${new Date(file.modified_at).toLocaleString()}`}
-                />
-              </List.Item>
-            )}
-          />
-        )}
-      </div>
-      <div style={{ margin: '16px 0' }}>
-        <input
-          type="file"
-          ref={fileInputRef}
-          style={{ display: 'none' }}
-          onChange={(event) => {
-            const selectedFile = event.target.files?.[0];
-            if (selectedFile) {
-              handleUploadFile(selectedFile);
-            }
-          }}
-        />
-        <Button
-          onClick={() => fileInputRef.current?.click()}
-          style={{ marginBottom: '8px' }}
+    <AntdModal
+      title={title}
+      open={visible}
+      onCancel={onClose}
+      footer={null}
+      width={1040}
+      className="document-slot-modal"
+      styles={{ body: { height: '76vh', overflow: 'hidden' } }}
+    >
+      <div className="document-slot-modal__content">
+        <div
+          className="document-slot-modal__topbar"
         >
-          选择本地文件
-        </Button>
+          <div className="document-slot-modal__path">
+            <div className="document-slot-modal__label">目标目录路径</div>
+            <div className="document-slot-modal__path-value">
+              {getTargetFolderDisplay()}
+            </div>
+          </div>
+          <div className="document-slot-modal__actions">
+            <Button onClick={handleOpenFolder} disabled={!canOpenFolder}>
+              打开当前目录
+            </Button>
+            <Button onClick={handleOpenLatestFile} disabled={!canOpenLatestFile}>
+              打开最新文件
+            </Button>
+            <input
+              type="file"
+              ref={fileInputRef}
+              style={{ display: 'none' }}
+              onChange={(event) => {
+                const selectedFile = event.target.files?.[0];
+                if (selectedFile) {
+                  handleUploadFile(selectedFile);
+                }
+              }}
+            />
+            <Button onClick={() => fileInputRef.current?.click()}>
+              选择本地文件
+            </Button>
+          </div>
+        </div>
+
+        <div className="document-slot-modal__body">
+          <div className="document-slot-modal__staging">
+            <h4 className="document-slot-modal__section-title">待上传文件列表</h4>
+            <div className="document-slot-modal__scroll">
+              {stagingFiles.length === 0 ? (
+                <Empty description="暂无待上传文件" />
+              ) : (
+                <List
+                  dataSource={stagingFiles}
+                  renderItem={(file) => (
+                    <List.Item
+                      actions={[
+                        <Button key="import" onClick={() => handleImportFile(file)}>
+                          导入
+                        </Button>,
+                        <Button
+                          key="delete"
+                          size="small"
+                          type="text"
+                          onClick={() => handleDeleteStagingFile(file)}
+                          style={{ minWidth: '28px', padding: '0 4px', color: 'var(--danger-color)' }}
+                        >
+                          <DeleteOutlined />
+                        </Button>,
+                      ]}
+                    >
+                      <List.Item.Meta
+                        title={file.filename}
+                        description={`大小: ${(file.size / 1024).toFixed(2)} KB | 修改时间: ${formatDateTime(file.modified_at)}`}
+                      />
+                    </List.Item>
+                  )}
+                />
+              )}
+            </div>
+          </div>
+
+          <div className="document-slot-modal__side">
+            <div className="document-slot-modal__panel document-slot-modal__panel--remark">
+              <div className="document-slot-modal__section-title">备注</div>
+              <Input.TextArea
+                value={remarks}
+                onChange={(e) => setRemarks(e.target.value)}
+                placeholder="输入备注"
+                rows={4}
+                className="document-slot-modal__remark-input"
+              />
+            </div>
+
+            <div className="document-slot-modal__panel document-slot-modal__panel--history">
+              <div className="document-slot-modal__section-title">文件上传历史</div>
+              <div className="document-slot-modal__scroll">
+                {error ? (
+                  <Empty description={`加载历史记录失败: ${error}`} />
+                ) : sortedFiles.length === 0 ? (
+                  <Empty description="暂无历史记录" />
+                ) : (
+                  <List
+                    size="small"
+                    dataSource={sortedFiles}
+                    renderItem={(file) => {
+                      const uploadDate = file.uploaded_at;
+                      const remarkText = file.remark;
+                      const secondary = [
+                        uploadDate ? formatDateTime(uploadDate) : '',
+                        remarkText || '',
+                        file.is_latest ? '最新版本' : '',
+                      ]
+                        .filter(Boolean)
+                        .join('  ·  ');
+
+                      return (
+                        <List.Item>
+                          <div style={{ display: 'grid', gap: '3px', minWidth: 0 }}>
+                            <div
+                              style={{
+                                fontSize: '13px',
+                                fontWeight: 600,
+                                color: 'var(--text-primary)',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              {file.filename || ''}
+                            </div>
+                            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                              {secondary || '无备注'}
+                            </div>
+                          </div>
+                        </List.Item>
+                      );
+                    }}
+                  />
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-      <div>
-        <h4 style={{ marginBottom: '8px' }}>历史文件记录</h4>
-        {error ? (
-          <Empty description={`加载历史记录失败: ${error}`} />
-        ) : files.length === 0 ? (
-          <Empty description="暂无历史记录" />
-        ) : (
-          <FileList files={files} title="" />
-        )}
-      </div>
-      <div style={{ marginTop: '16px' }}>
-        <label style={{ marginBottom: '8px', display: 'block' }}>备注</label>
-        <Input.TextArea
-          value={remarks}
-          onChange={(e) => setRemarks(e.target.value)}
-          placeholder="输入备注"
-          rows={3}
-        />
-      </div>
-    </Modal>
+    </AntdModal>
   );
 };
 

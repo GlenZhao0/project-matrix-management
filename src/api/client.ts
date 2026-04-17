@@ -1,4 +1,4 @@
-const API_BASE_URL =
+export const API_BASE_URL =
   (import.meta as any)?.env?.VITE_API_BASE_URL ?? 'http://localhost:8000/api';
 
 async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
@@ -23,7 +23,14 @@ async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
 
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(`API error ${response.status}: ${text}`);
+    let detail = text;
+    try {
+      const parsed = JSON.parse(text);
+      detail = parsed?.detail || parsed?.message || text;
+    } catch {
+      // keep raw text fallback
+    }
+    throw new Error(detail || `API error ${response.status}`);
   }
 
   return response.json();

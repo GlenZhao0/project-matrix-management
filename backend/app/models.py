@@ -16,6 +16,18 @@ class ProjectTemplate(Base):
     projects = relationship("Project", back_populates="project_template")
 
 
+class SystemSettings(Base):
+    __tablename__ = "system_settings"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    project_root = Column(String(1024), nullable=True)
+    import_root = Column(String(1024), nullable=True)
+    export_root = Column(String(1024), nullable=True)
+    theme = Column(String(32), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class SlotTemplate(Base):
     __tablename__ = "slot_templates"
 
@@ -58,18 +70,28 @@ class Project(Base):
     __tablename__ = "projects"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    project_list_name = Column(String(255), nullable=True)
+    internal_code = Column(String(255), nullable=True)
     customer_name = Column(String(255), nullable=False)
     project_name = Column(String(255), nullable=False)
+    annual_revenue_estimate = Column(String(255), nullable=True)
+    engineer_name = Column(String(255), nullable=True)
+    pm_name = Column(String(255), nullable=True)
     template_name = Column(String(255), nullable=True)
     project_template_id = Column(String(36), ForeignKey("project_templates.id"), nullable=True)
+    summary_json = Column(Text, nullable=True)
+    summary_html = Column(Text, nullable=True)
+    summary_updated_at = Column(DateTime, nullable=True)
     root_path = Column(String(1024), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     project_template = relationship("ProjectTemplate", back_populates="projects")
     default_slot_template_id = Column(String(36), ForeignKey("slot_templates.id"), nullable=True)
     default_slot_template = relationship("SlotTemplate", foreign_keys=[default_slot_template_id])
     parts = relationship("Part", back_populates="project", cascade="all, delete-orphan")
     document_slots = relationship("DocumentSlot", back_populates="project", cascade="all, delete-orphan")
+    summary_histories = relationship("ProjectSummaryHistory", back_populates="project", cascade="all, delete-orphan")
 
     @property
     def default_slot_template_name(self):
@@ -96,6 +118,19 @@ class Part(Base):
     children = relationship("Part", back_populates="parent_part", cascade="all, delete-orphan")
     applied_slot_template = relationship("SlotTemplate")
     document_slots = relationship("DocumentSlot", back_populates="part", cascade="all, delete-orphan")
+
+
+class ProjectSummaryHistory(Base):
+    __tablename__ = "project_summary_histories"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    project_id = Column(String(36), ForeignKey("projects.id"), nullable=False)
+    version_no = Column(Integer, nullable=False)
+    summary_json = Column(Text, nullable=True)
+    summary_html = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    project = relationship("Project", back_populates="summary_histories")
 
 
 class DocumentSlot(Base):

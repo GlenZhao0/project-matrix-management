@@ -1,0 +1,29 @@
+# Frontend dependencies and build output
+node_modules/
+dist/
+
+# Python virtual environments
+.venv/
+venv/
+
+# Logs and temp files
+logs/
+tmp/
+*.log
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Local databases
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+
+# Runtime exports and local data artifacts
+exports/
+**/.project_meta.json
+
+# OS/editor noise
+.DS_Store
